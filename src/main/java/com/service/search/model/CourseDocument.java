@@ -1,52 +1,35 @@
 package com.service.search.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.elasticsearch.annotations.Document;
-import org.springframework.data.elasticsearch.annotations.Field;
-import org.springframework.data.elasticsearch.annotations.FieldType;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import lombok.*;
+import java.time.Instant;
 
-
-import java.time.ZonedDateTime;
-
-@Document(indexName = "courses")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@JsonIgnoreProperties(ignoreUnknown = true)
+@Builder
 public class CourseDocument {
 
-    @Id
     private String id;
 
-    @Field(type = FieldType.Text, analyzer = "standard")
     private String title;
 
-    @Field(type = FieldType.Text, analyzer = "standard")
     private String description;
 
-    @Field(type = FieldType.Integer)
+    private String category;  // E.g., "Math", "Science", etc.
+
+    private String type;      // "ONE_TIME", "COURSE", "CLUB"
+
+    private String gradeRange;  // e.g., "1st–3rd"
+
     private Integer minAge;
 
-    @Field(type = FieldType.Integer)
     private Integer maxAge;
 
-    @Field(type = FieldType.Double)
     private Double price;
 
-    @Field(type = FieldType.Keyword)
-    private String category;
-
-    @Field(type = FieldType.Keyword)
-    private String type;
-
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX", timezone = "UTC")
-    private ZonedDateTime nextSessionDate;
-
-
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'", timezone = "UTC")
+    private Instant nextSessionDate;
 }

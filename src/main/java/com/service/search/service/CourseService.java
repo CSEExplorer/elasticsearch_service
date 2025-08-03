@@ -2,85 +2,63 @@ package com.service.search.service;
 
 import  com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.service.search.model.CourseDocument;
-import com.service.search.repository.CourseRepository;
-
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
-import java.time.ZonedDateTime;
 import java.util.List;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
+
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch.core.bulk.BulkOperation;
+import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CourseService {
 
-    private final CourseRepository courseRepository;
+    private final ElasticsearchClient elasticsearchClient;
+    private static final String INDEX_NAME = "courses";
 
     @PostConstruct
     public void loadCoursesFromJson() {
-    	try {
+        try {
+            // Step 1: Load and deserialize JSON
             ObjectMapper mapper = new ObjectMapper();
-            mapper.registerModule(new JavaTimeModule()); // 👈 Add this line
-            mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS); // Optional: make date format readable
-            
+            mapper.registerModule(new JavaTimeModule());
+            mapper.findAndRegisterModules();
+
             InputStream inputStream = new ClassPathResource("sample-courses.json").getInputStream();
             List<CourseDocument> courses = mapper.readValue(inputStream, new TypeReference<>() {});
-            courseRepository.saveAll(courses);
-            System.out.println("✅ Courses indexed into Elasticsearch");
-        }  catch (Exception e) {
-            e.printStackTrace();
+
+            // Step 2: Convert to bulk operations
+            List<BulkOperation> bulkOperations = courses.stream()
+                .map(course -> BulkOperation.of(op -> op
+                    .index(i -> i
+                        .index(INDEX_NAME)
+                        .id(course.getId())
+                        .document(course)
+                    )
+                ))
+                .collect(Collectors.toList());
+
+            // Step 3: Execute bulk indexing
+            elasticsearchClient.bulk(b -> b
+                .index(INDEX_NAME)
+                .operations(bulkOperations)
+            );
+
+            log.info("✅ Indexed {} courses into Elasticsearch", courses.size());
+
+        } catch (Exception e) {
+            log.error("❌ Failed to load and index courses", e);
         }
     }
-    
- // 🔍 Search by category
-    public List<CourseDocument> searchByCategory(String category) {
-        return courseRepository.findByCategory(category);
-    }
-
-    // 🔍 Search by type (ONE_TIME, COURSE, CLUB)
-    public List<CourseDocument> searchByType(String type) {
-        return courseRepository.findByType(type);
-    }
-
-    // 🔍 Search by keyword in title (case-insensitive)
-    public List<CourseDocument> searchByTitle(String keyword) {
-        return courseRepository.findByTitleContainingIgnoreCase(keyword);
-    }
-
-    // 🔍 Search by age range (inclusive logic)
-    public List<CourseDocument> searchByAgeRange(int age) {
-        return courseRepository.findByMinAgeLessThanEqualAndMaxAgeGreaterThanEqual(age, age);
-    }
-
-    // 🔍 Search courses within price range
-    public List<CourseDocument> searchByPriceRange(double min, double max) {
-        return courseRepository.findByPriceBetween(min, max);
-    }
-
-    // 🔍 Upcoming courses after a specific date
-    public List<CourseDocument> searchByUpcomingSessions(ZonedDateTime date) {
-        return courseRepository.findByNextSessionDateAfter(date);
-    }
-
-    // 🧩 Advanced search: category + type
-    public List<CourseDocument> searchByCategoryAndType(String category, String type) {
-        return courseRepository.findByCategoryAndType(category, type);
-    }
-
-    // 📦 Save all courses (useful for bootstrapping from JSON)
-    public void saveAll(List<CourseDocument> courses) {
-        courseRepository.saveAll(courses);
-    }
-
-    // 🧹 Delete all
-    public void deleteAll() {
-        courseRepository.deleteAll();
-    }
-
-    // You can add search methods here later
 }
